@@ -8,6 +8,7 @@ You start with 4 items and Your goal is the find all items. Good Luck.`;
 const STATS_TEXT = (stats) => `You have found ${stats['foundItems']} out of ${stats['totalItems']} items`;
 
 const HELP_TEXT = `${_HELP_TEXT}
+<br>
 <br>“Sound effects obtained from <a href='https://www.zapsplat.com'>zapsplat.com</a>“
 <br>“white icons PNG Designed By flat**** from <a href="https://pngtree.com/">Pngtree.com</a>“`
 

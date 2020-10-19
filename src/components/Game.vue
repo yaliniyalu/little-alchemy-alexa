@@ -28,14 +28,7 @@ import Board from "@/components/Board";
 import Item from "@/components/Item";
 
 import { cloneDeep } from 'lodash'
-import {
-    load,
-    store,
-    storeAddItems,
-    storeBoardClear, storeFoundItem, storeGameReset,
-    storeRemoveItems,
-    storeStats, storeUpdateItems
-} from "@/js/game-store-alexa";
+
 import {play, GameAudioIdEnum} from "@/js/game-audio";
 import {
     BOARD_CLEARED_SPEECH, CLEAR_BOARD_SPEECH,
@@ -45,6 +38,8 @@ import {
     STATS_TEXT, WIN_SPEECH,
     WIN_TEXT
 } from "@/js/const-text";
+import {init, load, store, storeBoard, storeFoundItem, storeStats} from "@/js/game-store";
+import {load as loadFromAlexa} from "@/js/game-store-alexa";
 
 export default {
     name: "Game",
@@ -93,6 +88,7 @@ export default {
                 }
             }
         },
+
         onPanMove(e) {
             if (!this.dragItem) {
                 return;
@@ -326,6 +322,74 @@ export default {
                 ]
             })
         },
+
+        async initializeAlexaWeb() {
+            await alexaWeb.create();
+
+            alexaWeb.setStoreListeners();
+
+            alexaWeb.on('MergeItems', ({ items }) => {
+                const found = game.getFoundItems();
+
+                if (found.indexOf(items[0]) === -1) {
+                    alexaWeb.speak(`${items[0]} is unavailable yet`);
+                    return;
+                }
+
+                if (found.indexOf(items[1]) === -1) {
+                    alexaWeb.speak(`${items[1]} is unavailable yet`);
+                    return
+                }
+
+                const created = game.merge(items[0], items[1]);
+
+                if (!created) {
+                    alexaWeb.speak(`Cannot merge ${items[0]} and ${items[1]}`);
+                }
+                else {
+                    if (!created.find(e => e.type === 'new')) {
+                        const i = [];
+                        created.forEach(v => i.push(v.item));
+                        alexaWeb.speak(`Merging ${items[0]} and ${items[1]} Created ${i.length} item.`);
+                    }
+                }
+            });
+
+            alexaWeb.on('LoadGame', (message) => {
+                loadFromAlexa(message.store);
+                this.prepareStage();
+            });
+            alexaWeb.on('ClearBoard', () => this.clearBoard());
+            alexaWeb.on('ResetGame', () => this.resetGame());
+            alexaWeb.on('GameStats', () => this.showStats());
+            alexaWeb.on('Help', () => this.showHelp());
+            alexaWeb.on('Close Cancel No', () => {
+                if (this.openedDialog) {
+                    this.closeOpenedDialog();
+                }
+            });
+            alexaWeb.on('Yes', () => {
+                switch (this.openedDialog) {
+                    case 'clear-board':
+                        game.clearBoard();
+                        break;
+
+                    case 'reset-game':
+                        game.reset();
+                        break;
+                }
+                this.closeOpenedDialog();
+            })
+
+            // Speech
+            game.on(GameEventsEnum.BOARD_CLEARED, _ => alexaWeb.speak(BOARD_CLEARED_SPEECH));
+            game.on(GameEventsEnum.ITEM_FOUND, items => alexaWeb.speak(ITEM_FOUND_TEXT(items)));
+            game.on(GameEventsEnum.GAME_RESET, _ => alexaWeb.speak(GAME_RESET_SPEECH));
+
+            window.emulate = message => {
+                alexaWeb.processMessage(message['intent'], message)
+            }
+        }
     },
 
     mounted() {
@@ -344,75 +408,25 @@ export default {
         game.on(GameEventsEnum.FOUND_ALL, _ => play(GameAudioIdEnum.APPLAUSE));
         game.on(GameEventsEnum.MERGE_COMPLETED, (items, newItems) => newItems.length ? play(GameAudioIdEnum.ITEM_FOUND) : play(GameAudioIdEnum.ITEM_CREATED));
 
-        // Save
-        game.on(GameEventsEnum.ITEM_FOUND, items => store(storeFoundItem(items)));
-        game.on(GameEventsEnum.ITEM_ADDED   , item => store(storeAddItems([item]), storeStats()));
-        game.on(GameEventsEnum.ITEM_REMOVED , (_, index) => store(storeRemoveItems([index])));
-        game.on(GameEventsEnum.ITEM_UPDATED, (item, index) => store(storeUpdateItems([{ index, item }])));
-        game.on(GameEventsEnum.BOARD_CLEARED, _ => store(storeBoardClear(), storeStats()));
-        game.on(GameEventsEnum.GAME_RESET, _ => store(storeGameReset()));
-        game.on(GameEventsEnum.FOUND_ALL, _ => store(storeStats()));
-
         this.prepareStage();
-
-        alexaWeb.on('MergeItems', ({ items }) => {
-            const found = game.getFoundItems();
-
-            if (found.indexOf(items[0]) === -1) {
-                alexaWeb.speak(`${items[0]} is unavailable yet`);
+        this.initializeAlexaWeb().catch(_ => {
+            if (!localStorage) {
                 return;
             }
 
-            if (found.indexOf(items[1]) === -1) {
-                alexaWeb.speak(`${items[1]} is unavailable yet`);
-                return
-            }
+            init();
+            load();
+            this.prepareStage();
 
-            const created = game.merge(items[0], items[1]);
-
-            if (!created) {
-                alexaWeb.speak(`Cannot merge ${items[0]} and ${items[1]}`);
-            }
-            else {
-                if (!created.find(e => e.type === 'new')) {
-                    const i = [];
-                    created.forEach(v => i.push(v.item));
-                    alexaWeb.speak(`Merging ${items[0]} and ${items[1]} Created ${i.length} item.`);
-                }
-            }
+            // Save
+            game.on(GameEventsEnum.ITEM_FOUND,    _ => store(storeFoundItem()));
+            game.on(GameEventsEnum.ITEM_ADDED,    _ => store(storeBoard(), storeStats()));
+            game.on(GameEventsEnum.ITEM_REMOVED,  _ => store(storeBoard()));
+            game.on(GameEventsEnum.ITEM_UPDATED,  _ => store(storeBoard()));
+            game.on(GameEventsEnum.BOARD_CLEARED, _ => store(storeBoard(), storeStats()));
+            game.on(GameEventsEnum.GAME_RESET,    _ => store(storeBoard(), storeStats(), storeFoundItem()));
+            game.on(GameEventsEnum.FOUND_ALL,     _ => store(storeStats()));
         });
-
-        alexaWeb.on('LoadGame', (message) => load(message.store));
-        alexaWeb.on('ClearBoard', () => this.clearBoard());
-        alexaWeb.on('ResetGame', () => this.resetGame());
-        alexaWeb.on('GameStats', () => this.showStats());
-        alexaWeb.on('Help', () => this.showHelp());
-        alexaWeb.on('Close Cancel No', () => {
-            if (this.openedDialog) {
-                this.closeOpenedDialog();
-            }
-        });
-        alexaWeb.on('Yes', () => {
-            switch (this.openedDialog) {
-                case 'clear-board':
-                    game.clearBoard();
-                    break;
-
-                case 'reset-game':
-                    game.reset();
-                    break;
-            }
-            this.closeOpenedDialog();
-        })
-
-        // Speech
-        game.on(GameEventsEnum.BOARD_CLEARED, _ => alexaWeb.speak(BOARD_CLEARED_SPEECH));
-        game.on(GameEventsEnum.ITEM_FOUND, items => alexaWeb.speak(ITEM_FOUND_TEXT(items)));
-        game.on(GameEventsEnum.GAME_RESET, _ => alexaWeb.speak(GAME_RESET_SPEECH));
-
-        window.emulate = message => {
-            alexaWeb.processMessage(message['intent'], message)
-        }
     },
 
     destroyed() {

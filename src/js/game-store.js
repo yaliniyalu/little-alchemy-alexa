@@ -1,22 +1,29 @@
 import game from "@/js/game";
 
-function storeFoundItems() {
-    const items = game.getFoundItems();
-    localStorage.setItem('found-items', JSON.stringify(items));
+const saveQueue = [];
+
+function init() {
+    setInterval(() => {
+        save();
+    }, 1500)
 }
 
-function storeBoard() {
-    const items = game.getBoard();
-    localStorage.setItem('board', JSON.stringify(items));
-}
+function save() {
+    if (saveQueue.includes(StoreTypeEnum.FOUND)) {
+        localStorage.setItem('found', JSON.stringify(game.getFoundItems()));
+    }
 
-function store() {
-    storeFoundItems();
-    storeBoard();
+    if (saveQueue.includes(StoreTypeEnum.STATS)) {
+        localStorage.setItem('stats', JSON.stringify(game.getStats()));
+    }
+
+    if (saveQueue.includes(StoreTypeEnum.BOARD)) {
+        localStorage.setItem('board', JSON.stringify(game.getBoard()));
+    }
 }
 
 function load() {
-    const found = localStorage.getItem('found-items');
+    const found = localStorage.getItem('found');
     if (found) {
         game.setFoundItems(JSON.parse(found));
     }
@@ -32,15 +39,34 @@ function load() {
     }
 }
 
+function store(...arr) {
+    saveQueue.push(...arr);
+}
+
 function storeStats() {
-    const stats = game.getStats();
-    localStorage.setItem('stats', JSON.stringify(stats));
+    return StoreTypeEnum.STATS
+}
+
+function storeFoundItem() {
+    return StoreTypeEnum.FOUND
+}
+
+function storeBoard() {
+    return StoreTypeEnum.BOARD
+}
+
+const StoreTypeEnum = {
+    BOARD: 'BOARD',
+    STATS: 'STATS',
+    FOUND: 'FOUND',
 }
 
 export {
-    storeFoundItems,
-    storeBoard,
-    storeStats,
+    init,
+    load,
     store,
-    load
+    storeFoundItem,
+    storeStats,
+    storeBoard,
+    StoreTypeEnum
 }
