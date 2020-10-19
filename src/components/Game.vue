@@ -225,10 +225,10 @@ export default {
     },
 
     mounted() {
-        window.addEventListener("resize", this.onWindowResize.bind(this));
+        window.addEventListener("resize", this.onWindowResize);
         this.onWindowResize();
 
-        document.body.addEventListener('onmouseup', this.cancelDrags.bind(this));
+        document.body.addEventListener('onmouseup', this.cancelDrags);
 
         game.on(GameEventsEnum.ITEM_ADDED, item => this.boardItems.push(item));
         game.on(GameEventsEnum.ITEM_REMOVED, (_, index) => this.boardItems.splice(index, 1));

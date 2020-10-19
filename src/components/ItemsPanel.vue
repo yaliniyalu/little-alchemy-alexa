@@ -1,8 +1,10 @@
 <template>
     <div id="items-panel" ref="itemsPanel" @mouseup="$emit('drag-cancel', $event)">
-        <div class="items" v-for="i in rowCount">
-            <item :item="item" v-for="item in itemCountInRow(i)" :key="item" @mousedown="$emit('drag-start', $event, item)" />
-        </div>
+        <vue-scroll :ops="scrollOptions">
+            <div class="items" v-for="i in rowCount">
+                <item :item="item" v-for="item in itemCountInRow(i)" :key="item" @mousedown="$emit('drag-start', $event, item)" />
+            </div>
+        </vue-scroll>
     </div>
 </template>
 
@@ -19,7 +21,20 @@ export default {
     },
     data() {
         return {
-            itemsPerRow: 3
+            itemsPerRow: 3,
+            scrollOptions: {
+                vuescroll: {
+                    mode: 'native'
+                },
+                scrollPanel: {
+                    scrollingX: false,
+                    easing: 'easeInQuad'
+                },
+                rail: {},
+                bar: {
+                    background: 'var(--primary-color)'
+                }
+            }
         }
     },
     computed:{
@@ -47,7 +62,7 @@ export default {
     border: 1px solid var(--primary-color);
     border-radius: 5px;
     height: 100%;
-    overflow-y: scroll;
+    overflow: hidden;
 
     .items {
         display: flex;
