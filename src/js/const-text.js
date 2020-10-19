@@ -7,12 +7,22 @@ You start with 4 items and Your goal is the find all items. Good Luck.`;
 
 const STATS_TEXT = (stats) => `You have found ${stats['foundItems']} out of ${stats['totalItems']} items`;
 
-const HELP_TEXT = `${_HELP_TEXT}. <br>“Sound effects obtained from <a href='https://www.zapsplat.com'>www.zapsplat.com</a>“`
+const HELP_TEXT = `${_HELP_TEXT}
+<br>“Sound effects obtained from <a href='https://www.zapsplat.com'>zapsplat.com</a>“
+<br>“white icons PNG Designed By flat**** from <a href="https://pngtree.com/">Pngtree.com</a>“`
+
 const RESET_GAME_TEXT = `All game progress will be cleared. Do you want to reset the game?`;
 const CLEAR_BOARD_TEXT = `Do you want to clear the board?`;
 const WIN_TEXT = `Congratulations, You found all items. Now you can reset the game and start over.`;
 
-const ITEM_FOUND_TEXT = (items) => `You have found ${items.length} new items ${items.reduce((a, b, i, r) => a + (i < r.length - 1 ? ', ' : ' and ') + b)}.`;
+const ITEM_FOUND_TEXT = (items) => {
+    if (items.length === 1) {
+        return `You have found ${items[0]}`;
+    }
+    else {
+        return `You have found ${items.length} new items. ${items.reduce((a, b, i, r) => a + (i < r.length - 1 ? ', ' : ' and ') + b)}.`;
+    }
+}
 
 const BOARD_CLEARED_SPEECH = "Board Cleared";
 const GAME_RESET_SPEECH = "Your progress has been deleted."

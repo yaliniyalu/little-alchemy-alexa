@@ -1,5 +1,5 @@
 <template>
-    <div class="item" @mousedown="$emit('mousedown', $event)">
+    <div class="item">
         <img class="image" :src="require(`./../assets/img/${item}.png`)" :alt="item">
         <span class="name" v-if="displayName">{{ item }}</span>
     </div>
@@ -31,6 +31,7 @@ export default {
     justify-content: flex-end;
     transition: transform .2s;
     cursor: pointer;
+    //border: 1px solid red;
 
     /*&:hover {
         transform: scale(1.2);

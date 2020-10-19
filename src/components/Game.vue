@@ -1,13 +1,13 @@
 <template>
-    <div class="game" @mousemove="itemDrag" @mouseup="itemDragFinish">
+    <div class="game" v-recognizer:pan.start="onPanStart" v-recognizer:pan.move="onPanMove" v-recognizer:pan.end="onPanEnd" v-recognizer:pan.cancel="onPanCancel">
         <div class="board-container" ref="boardContainer">
             <Board :items="boardItems" ref="board" @show-help="showHelp" @show-stats="showStats" @action-reset-game="resetGame" @action-clear-board="clearBoard" />
         </div>
         <div class="items-panel-container">
-            <ItemsPanel :items="foundItems" @drag-start="itemDragStart" @drag-cancel="itemDragCancel" ref="itemsPanel"/>
+            <ItemsPanel :items="foundItems" ref="itemsPanel"/>
         </div>
         <Item
-            :style="{position: 'absolute', left: dragItem.left + 'px', top:dragItem.top + 'px', 'z-index': dragItem.zIndex }"
+            :style="{position: 'absolute', left: dragItem.x + 'px', top:dragItem.y + 'px', 'z-index': dragItem.zIndex }"
             :item="dragItem.item"
             v-if="dragItem && dragItem.item"
 
@@ -57,59 +57,163 @@ export default {
             dragItem: null,
             boardBounds: null,
 
-            openedDialog: null
+            openedDialog: null,
+
+            itemBounds: {
+                width: 60,
+                height: 60
+            }
         }
     },
 
     methods: {
-        itemDragStart(e, item) {
-            const position = e.target.getBoundingClientRect();
-            this.dragItem = {
-                item: item,
-                left: position.left,
-                top: position.top,
-                x: e.x - position.left,
-                y: e.y - position.top,
-                zIndex: 5
+        onPanStart(e) {
+            const target = e.target;
+
+            if (target.classList.contains('item')) {
+                const rect = target.getBoundingClientRect();
+                const item = target.getAttribute('data-item');
+                const index = target.getAttribute('data-board-item');
+
+                this.dragItem = {
+                    item: item,
+                    index: index !== null ? parseInt(index) : null,
+                    x: rect.left,
+                    y: rect.top,
+                    centerX: (rect.width / 2),
+                    centerY: (rect.height / 2),
+                    origX: rect.left,
+                    origY: rect.top,
+                    zIndex: 5
+                }
+
+                if (index) {
+                    const item = this.boardItems[index];
+                    this.$set(item, 'zIndex', 5)
+                }
             }
         },
-
-        itemDragCancel() {
-            this.dragItem = null;
-        },
-
-        itemDrag(e) {
+        onPanMove(e) {
             if (!this.dragItem) {
                 return;
             }
 
-            this.dragItem.left = e.x - this.dragItem.x;
-            this.dragItem.top = e.y - this.dragItem.y;
+            const item = (this.dragItem.index !== null) ? this.boardItems[this.dragItem.index] : this.dragItem;
+            item.x = e.center.x - this.dragItem.centerX;
+            item.y = e.center.y - this.dragItem.centerY;
         },
 
-        itemDragFinish(e) {
+        onPanCancel() {
             if (!this.dragItem) {
-                this.cancelDrags();
                 return;
             }
 
-            if ((e.x >= this.boardBounds.x && e.x <= this.boardBounds.right) &&
-                (e.y >= this.boardBounds.y && e.y <= this.boardBounds.bottom)) {
-                this.$refs.board.addItem(this.dragItem.item, e.x - this.dragItem.x, e.y - this.dragItem.y, e.x, e.y)
+            if (this.dragItem.index === null) {
+                this.dragItem = null;
+                return;
             }
 
+            const item = this.boardItems[this.dragItem.index];
+            item.x = this.dragItem.origX;
+            item.y = this.dragItem.origY;
+            delete item.zIndex;
             this.dragItem = null;
+        },
+
+        onPanEnd(e) {
+            if (!this.dragItem) {
+                return;
+            }
+
+            this.onPanMove(e);
+
+            // if not inside board bounds
+            if (!((e.center.x >= this.boardBounds.x && e.center.x <= this.boardBounds.right) &&
+                (e.center.y >= this.boardBounds.y && e.center.y <= this.boardBounds.bottom))) {
+                return this.onPanCancel(e);
+            }
+
+            const x = e.center.x - this.dragItem.centerX;
+            const y = e.center.y - this.dragItem.centerY;
+
+            if (this.$refs.board.isDeletable({ x1: x, y1: y, x2: x + 60, y2: y + 60 })) {
+                game.removeFromBoard(this.dragItem.index);
+                this.dragItem = null;
+                return;
+            }
+
+            if (this.dragItem.index === null) {
+                this.dragItem.index = game.addToBoard(this.dragItem.item,  x, y);
+            }
+            else {
+                game.updateBoardItem(this.dragItem.index, this.dragItem.item, x, y)
+            }
+
+            const item = this.boardItems[this.dragItem.index];
+            const rect = { x1: x + 15, y1: y + 15, x2: x + 35, y2: y + 35 };
+
+            this.boardItems.some((value, index) => {
+                if (index === this.dragItem.index) {
+                    return false;
+                }
+
+                const rect2 = { x1: value.x, x2: value.x + 60, y1: value.y, y2: value.y + 60}
+
+                if (this.overlaps(rect2, rect)) {
+                    this.merge(index, this.dragItem.index);
+                    return true;
+                }
+                return false;
+            });
+
+            delete item.zIndex;
+            this.dragItem = null;
+        },
+
+        overlaps(a, b) {
+            return (a.x1 < b.x2) && (a.x2 > b.x1) && (a.y1 < b.y2) && (a.y2 > b.y1);
+        },
+
+        merge(x, y) {
+            const item1 = this.boardItems[x];
+            const item2 = this.boardItems[y];
+
+            const items = game.merge(item1.item, item2.item);
+
+            if (!items) {
+                const elItem = document.querySelector(`[data-board-item="${y}"]`);
+
+                if (!elItem) return;
+                const fn = () => {
+                    elItem.removeEventListener('animationend', fn)
+                    elItem.classList.remove('shake-animation');
+                }
+
+                elItem.addEventListener('animationend', fn)
+                elItem.classList.add('shake-animation');
+
+                return;
+            }
+
+            let inX = (items.length/2) * 25;
+
+            items.forEach(v => {
+                game.addToBoard(v.item, item1.x + inX, item1.y);
+                inX -= 25;
+            });
+
+            if (y > x) {
+                [x, y] = [y, x];
+            }
+
+            game.removeFromBoard(x);
+            game.removeFromBoard(y);
         },
 
         onWindowResize() {
             this.boardBounds = this.$refs.boardContainer.getBoundingClientRect();
             this.$refs.itemsPanel.resize();
             this.$refs.board.resize();
-        },
-
-        cancelDrags() {
-            this.dragItem = null;
-            this.$refs.board.dragCancel();
         },
 
         prepareStage() {
@@ -228,8 +332,6 @@ export default {
         window.addEventListener("resize", this.onWindowResize);
         this.onWindowResize();
 
-        document.body.addEventListener('onmouseup', this.cancelDrags);
-
         game.on(GameEventsEnum.ITEM_ADDED, item => this.boardItems.push(item));
         game.on(GameEventsEnum.ITEM_REMOVED, (_, index) => this.boardItems.splice(index, 1));
         game.on(GameEventsEnum.BOARD_CLEARED, _ => this.boardItems = []);
@@ -315,7 +417,6 @@ export default {
 
     destroyed() {
         window.removeEventListener("resize", this.onWindowResize);
-        document.body.removeEventListener('onmouseup', this.cancelDrags)
     }
 }
 </script>

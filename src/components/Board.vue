@@ -1,5 +1,5 @@
 <template>
-    <div id="board" ref="board" @mousemove="onDrag" @mouseup="dragFinish">
+    <div id="board" ref="board" >
         <div id="btn-remove" :class="{ active: removeBtnActive }" ref="removeBtn" @click="$emit('action-clear-board')">
             <font-awesome-icon icon="times" />
         </div>
@@ -22,7 +22,6 @@
             :item="item.item"
             :display-name="false"
             :key="item.id"
-            @mousedown.stop="dragStart($event, index)"
             :data-board-item="index"
         />
         </transition-group>
@@ -44,155 +43,24 @@ export default {
 
     data() {
         return {
-            dragItem: null,
-            myBounds: null,
             removeBtnBounds: null,
             removeBtnActive: false,
-            itemBounds: {
-                width: 60,
-                height: 60
-            }
         }
     },
 
     methods: {
-        dragStart(e, index) {
-            const item = this.items[index];
-
-            this.dragItem = {
-                itemIndex: index,
-                origX: item.x,
-                origY: item.y,
-                mx: e.x - item.x,
-                my: e.y - item.y
-            };
-
-            this.$set(item, 'zIndex', 5)
-        },
-
-        dragFinish(e) {
-            if (!this.dragItem) {
-                return;
-            }
-
-            e.stopPropagation();
-
-            const item = this.items[this.dragItem.itemIndex];
-
-            if ((e.x >= this.removeBtnBounds.x && e.x <= this.removeBtnBounds.right) &&
-                (e.y >= this.removeBtnBounds.y && e.y <= this.removeBtnBounds.bottom)) {
-                this.removeBtnActive = false;
-                game.removeFromBoard(this.dragItem.itemIndex);
-            }
-            else {
-                game.updateBoardItem(this.dragItem.itemIndex, item['item'], item.x, item.y)
-                this.items.some((value, index) => {
-                    if (index === this.dragItem.itemIndex) {
-                        return false;
-                    }
-
-                    if (e.x >= value.x && e.x <= (value.x + this.itemBounds.width) && e.y >= value.y && e.y <= (value.y + this.itemBounds.height)) {
-                        this.merge(index, this.dragItem.itemIndex);
-                        return true;
-                    }
-                    return false;
-                });
-            }
-
-            delete item.zIndex;
-            this.dragItem = null;
-        },
-
-        onDrag(e) {
-            if (!this.dragItem) {
-                return;
-            }
-            e.stopPropagation();
-
-            if ((e.x >= this.myBounds.x && e.x <= this.myBounds.right) &&
-                (e.y >= this.myBounds.y && e.y <= this.myBounds.bottom)) {
-                const item = this.items[this.dragItem.itemIndex];
-                item.x = e.x - this.dragItem.mx;
-                item.y = e.y - this.dragItem.my;
-
-                if ((e.x >= this.removeBtnBounds.x && e.x <= this.removeBtnBounds.right) &&
-                    (e.y >= this.removeBtnBounds.y && e.y <= this.removeBtnBounds.bottom)) {
-                    this.removeBtnActive = true;
-                    return;
-                }
-            }
-
-            this.removeBtnActive = false;
-        },
-
-        addItem(item, x, y, mx, my) {
-            const i = game.addToBoard(item, x, y);
-
-            this.items.some((value, index) => {
-                if (index === i) {
-                    return false;
-                }
-
-                if (mx >= value.x && mx <= (value.x + this.itemBounds.width) && my >= value.y && my <= (value.y + this.itemBounds.height)) {
-                    this.merge(index, i);
-                    return true;
-                }
-                return false;
-            });
-        },
-
         resize() {
-            this.myBounds = this.$refs.board.getBoundingClientRect();
             this.removeBtnBounds = this.$refs.removeBtn.getBoundingClientRect();
         },
 
-        dragCancel() {
-            if (!this.dragItem) {
-                return;
-            }
-
-            const item = this.items[this.dragItem.itemIndex];
-            item.x = this.dragItem.origX;
-            item.y = this.dragItem.origY;
-            delete item.zIndex;
-
-            this.dragItem = null;
+        isDeletable(rect) {
+            const s = this.removeBtnBounds;
+            const r = { x1: s.left, x2: s.right, y1: s.top, y2: s.bottom };
+            return this.overlaps(rect, r);
         },
 
-        merge(x, y) {
-            const item1 = this.items[x];
-            const item2 = this.items[y];
-
-            const items = game.merge(item1.item, item2.item);
-
-            if (!items) {
-                const elItem = document.querySelector(`[data-board-item="${y}"]`);
-
-                if (!elItem) return;
-                const fn = () => {
-                    elItem.removeEventListener('animationend', fn)
-                    elItem.classList.remove('shake-animation');
-                }
-
-                elItem.addEventListener('animationend', fn)
-                elItem.classList.add('shake-animation');
-
-                return;
-            }
-
-            let inX = (items.length/2) * 25;
-
-            items.forEach(v => {
-                game.addToBoard(v.item, item1.x + inX, item1.y);
-                inX -= 25;
-            });
-
-            if (y > x) {
-                [x, y] = [y, x];
-            }
-
-            game.removeFromBoard(x);
-            game.removeFromBoard(y);
+        overlaps(a, b) {
+            return (a.x1 < b.x2) && (a.x2 > b.x1) && (a.y1 < b.y2) && (a.y2 > b.y1);
         },
     },
 
@@ -233,7 +101,7 @@ export default {
     border-radius: 5px;
     cursor: pointer;
 
-    &.active {
+    &.active, &:hover {
         color: #b71c1c;
     }
 }

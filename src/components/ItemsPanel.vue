@@ -1,8 +1,8 @@
 <template>
-    <div id="items-panel" ref="itemsPanel" @mouseup="$emit('drag-cancel', $event)">
+    <div id="items-panel" ref="itemsPanel">
         <vue-scroll :ops="scrollOptions">
             <div class="items" v-for="i in rowCount">
-                <item :item="item" v-for="item in itemCountInRow(i)" :key="item" @mousedown="$emit('drag-start', $event, item)" />
+                <item :item="item" v-for="item in itemCountInRow(i)" :key="item" :data-item="item" />
             </div>
         </vue-scroll>
     </div>
@@ -42,7 +42,6 @@ export default {
             return Math.ceil(this.items.length / this.itemsPerRow);
         },
     },
-
     methods:{
         itemCountInRow:function(index){
             return this.items.slice((index - 1) * this.itemsPerRow, index * this.itemsPerRow)

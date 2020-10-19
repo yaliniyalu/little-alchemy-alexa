@@ -12,6 +12,9 @@ import vuescroll from 'vuescroll';
 Vue.use(vuescroll)
 Vue.component('vue-scroll', vuescroll);
 
+import VueRecognizer from 'vue-recognizer';
+Vue.use(VueRecognizer);
+
 Vue.config.productionTip = false
 
 new Vue({
